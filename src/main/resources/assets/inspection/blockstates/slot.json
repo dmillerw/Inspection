@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "inspection:slot" },
+    "facing=south": { "model": "inspection:slot", "y": 180 },
+    "facing=west":  { "model": "inspection:slot", "y": 270 },
+    "facing=east":  { "model": "inspection:slot", "y": 90 }
+  }
+}
