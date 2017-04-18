@@ -5,11 +5,14 @@ import me.dmillerw.inspection.block.ModBlocks;
 import me.dmillerw.inspection.block.tile.core.TileGridOwner;
 import me.dmillerw.inspection.network.packet.server.SConfigureSlot;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.InventoryHelper;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.EnumHand;
 import net.minecraft.util.ITickable;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
@@ -141,6 +144,32 @@ public class TileSlot extends TileGridOwner implements ITickable {
             if (update)
                 markDirtyAndNotify();
         }
+    }
+
+    public void handleLeftClick(EntityPlayer player) {
+        if (world.isRemote) return;
+        if (itemHandler == null) return;
+
+        ItemStack droppedStack = ItemStack.EMPTY;
+        if (player.isSneaking())
+            droppedStack = itemHandler.extractItem(slot, 1, false);
+        else
+            droppedStack = itemHandler.extractItem(slot, 64, false);
+
+        if (!droppedStack.isEmpty())
+            InventoryHelper.spawnItemStack(world, player.posX, player.posY, player.posZ, droppedStack);
+
+        markDirtyAndNotify();
+    }
+
+    public void handleRightClick(EntityPlayer player, EnumHand hand, EnumFacing facing) {
+        if (world.isRemote) return;
+        if (itemHandler == null) return;
+
+        ItemStack held = player.getHeldItem(hand).copy();
+        player.setHeldItem(hand, itemHandler.insertItem(slot, held, false));
+
+        markDirtyAndNotify();
     }
 
     public void handleUpdate(SConfigureSlot updatePacket) {

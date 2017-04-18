@@ -1,6 +1,7 @@
 package me.dmillerw.inspection.block;
 
 import me.dmillerw.inspection.block.tile.TileSlot;
+import me.dmillerw.inspection.item.ModItems;
 import me.dmillerw.inspection.lib.ModInfo;
 import me.dmillerw.inspection.network.GuiHandler;
 import net.minecraft.block.Block;
@@ -70,18 +71,40 @@ public class BlockSlot extends Block implements ITileEntityProvider {
     }
 
     @Override
-    public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
-        if (playerIn.isSneaking()) {
-            if (!worldIn.isRemote) {
-                TileSlot tile = (TileSlot) worldIn.getTileEntity(pos);
-                if (tile != null) {
-                    tile.reanalayze();
-                }
-            }
+    public boolean removedByPlayer(IBlockState state, World world, BlockPos pos, EntityPlayer player, boolean willHarvest) {
+        if (player.capabilities.isCreativeMode && !player.isSneaking()) {
+            this.onBlockClicked(world, pos, player);
+            return false;
+        } else {
+            return world.setBlockToAir(pos);
+        }
+    }
 
+    @Override
+    public void onBlockClicked(World worldIn, BlockPos pos, EntityPlayer playerIn) {
+        if (!worldIn.isRemote) {
+            TileSlot tile = (TileSlot) worldIn.getTileEntity(pos);
+            if (tile != null) {
+                tile.handleLeftClick(playerIn);
+            }
+        }
+    }
+
+    @Override
+    public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
+        ItemStack held = playerIn.getHeldItem(hand);
+        if (!held.isEmpty() && held.getItem() == ModItems.configurator) {
+            GuiHandler.Gui.SLOT.openGui(playerIn, pos);
             return true;
         }
-        GuiHandler.Gui.SLOT.openGui(playerIn, pos);
+
+        if (!worldIn.isRemote) {
+            TileSlot tile = (TileSlot) worldIn.getTileEntity(pos);
+            if (tile != null) {
+                tile.handleRightClick(playerIn, hand, facing);
+            }
+        }
+
         return true;
     }
 
