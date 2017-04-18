@@ -3,6 +3,7 @@ package me.dmillerw.inspection.block.tile;
 import com.google.common.collect.Lists;
 import me.dmillerw.inspection.block.ModBlocks;
 import me.dmillerw.inspection.block.tile.core.TileGridOwner;
+import me.dmillerw.inspection.network.packet.server.SConfigureSlot;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -10,6 +11,7 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
+import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
@@ -39,12 +41,15 @@ public class TileSlot extends TileGridOwner implements ITickable {
 
             Connection that = (Connection) object;
 
-            return blockPos.equals(that.blockPos);
+            if (!blockPos.equals(that.blockPos)) return false;
+            return side == that.side;
         }
 
         @Override
         public int hashCode() {
-            return blockPos.hashCode();
+            int result = blockPos.hashCode();
+            result = 31 * result + side.hashCode();
+            return result;
         }
     }
 
@@ -53,8 +58,14 @@ public class TileSlot extends TileGridOwner implements ITickable {
     private IItemHandler itemHandler;
     public int slot = -1;
 
-    public ItemStack renderItem = ItemStack.EMPTY;
-    public int inventorySize = 0;
+    private NonNullList<ItemStack> inventoryContents = NonNullList.withSize(1, ItemStack.EMPTY);
+
+    public ItemStack getItemStack(int index) {
+        if (index < 0 || index >= inventoryContents.size())
+            return ItemStack.EMPTY;
+
+        return inventoryContents.get(index);
+    }
 
     @Override
     public void writeToDisk(NBTTagCompound compound) {
@@ -71,11 +82,13 @@ public class TileSlot extends TileGridOwner implements ITickable {
         compound.setLong("selectedBlock", selectedBlock.toLong());
         compound.setInteger("slot", slot);
 
-        NBTTagCompound item = new NBTTagCompound();
-        renderItem.writeToNBT(item);
-        compound.setTag("item", item);
-
-        compound.setInteger("inventorySize", inventorySize);
+        NBTTagList contents = new NBTTagList();
+        for (ItemStack itemStack : inventoryContents) {
+            NBTTagCompound tag = new NBTTagCompound();
+            itemStack.writeToNBT(tag);
+            contents.appendTag(tag);
+        }
+        compound.setTag("inventoryContents", contents);
     }
 
     @Override
@@ -92,8 +105,14 @@ public class TileSlot extends TileGridOwner implements ITickable {
 
         selectedBlock = BlockPos.fromLong(compound.getLong("selectedBlock"));
         slot = compound.getInteger("slot");
-        renderItem = new ItemStack(compound.getCompoundTag("item"));
-        inventorySize = compound.getInteger("inventorySize");
+
+        NBTTagList contents = compound.getTagList("inventoryContents", Constants.NBT.TAG_COMPOUND);
+        inventoryContents = NonNullList.withSize(contents.tagCount(), ItemStack.EMPTY);
+
+        for (int i=0; i<contents.tagCount(); i++) {
+            NBTTagCompound tag = contents.getCompoundTagAt(i);
+            inventoryContents.set(i, new ItemStack(tag));
+        }
     }
 
     @Override
@@ -101,38 +120,66 @@ public class TileSlot extends TileGridOwner implements ITickable {
         super.update();
 
         if (!world.isRemote) {
+            boolean update = false;
             if (selectedBlock != BlockPos.ORIGIN && itemHandler != null && slot >= 0) {
-                ItemStack stack = itemHandler.getStackInSlot(slot);
-                if (!ItemStack.areItemStacksEqual(stack, renderItem)) {
-                    renderItem = stack.copy();
+                if (inventoryContents.size() != itemHandler.getSlots()) {
+                    rebuildItemContents();
+                    update = true;
+                }
 
-                    markDirtyAndNotify();
+                for (int i=0; i<inventoryContents.size(); i++) {
+                    ItemStack ours = inventoryContents.get(i);
+                    ItemStack theirs = itemHandler.getStackInSlot(i);
+
+                    if (!ItemStack.areItemsEqual(ours, theirs)) {
+                        update = true;
+                        inventoryContents.set(i, theirs);
+                    }
                 }
             }
+
+            if (update)
+                markDirtyAndNotify();
         }
     }
 
-    public void handleUpdate(int selection, int slot) {
-        if (selection >= 0) {
-            if (selection >= connections.size() || connections.get(selection) == null) {
+    public void handleUpdate(SConfigureSlot updatePacket) {
+        if (updatePacket.hasSelection) {
+            if (updatePacket.selection >= 0) {
+                if (updatePacket.selection >= connections.size() || connections.get(updatePacket.selection) == null) {
+                    this.selectedBlock = BlockPos.ORIGIN;
+                    this.itemHandler = null;
+                    this.slot = -1;
+                } else {
+                    Connection connection = connections.get(updatePacket.selection);
+
+                    this.selectedBlock = connection.blockPos;
+                    this.itemHandler = world.getTileEntity(selectedBlock).getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, connection.side);
+                    if (updatePacket.hasSlot) this.slot = updatePacket.slot;
+                }
+            } else {
                 this.selectedBlock = BlockPos.ORIGIN;
                 this.itemHandler = null;
-                this.renderItem = ItemStack.EMPTY;
-                this.inventorySize = 0;
                 this.slot = -1;
-            } else {
-                Connection connection = connections.get(selection);
-
-                this.selectedBlock = connection.blockPos;
-                this.itemHandler = world.getTileEntity(selectedBlock).getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, connection.side);
-                this.inventorySize = itemHandler.getSlots();
-                this.slot = slot;
             }
         }
 
-        if (slot >= 0) this.slot = slot;
+        if (updatePacket.hasSlot)
+            if (slot >= 0) this.slot = updatePacket.slot;
 
+        rebuildItemContents();
         markDirtyAndNotify();
+    }
+
+    private void rebuildItemContents() {
+        if (itemHandler == null) {
+            inventoryContents = NonNullList.withSize(1, ItemStack.EMPTY);
+        } else {
+            inventoryContents = NonNullList.withSize(itemHandler.getSlots(), ItemStack.EMPTY);
+            for (int i=0; i<inventoryContents.size(); i++) {
+                inventoryContents.set(i, itemHandler.getStackInSlot(i));
+            }
+        }
     }
 
     @Override
@@ -140,7 +187,7 @@ public class TileSlot extends TileGridOwner implements ITickable {
         super.reanalayze();
 
         connections.clear();
-        this.cables.forEach(this::addConnections);
+        this.trackedLocations.forEach(this::addConnections);
         this.addConnections(getPos());
 
         boolean foundSelected = false;
@@ -154,11 +201,10 @@ public class TileSlot extends TileGridOwner implements ITickable {
         if (!foundSelected) {
             this.selectedBlock = BlockPos.ORIGIN;
             this.itemHandler = null;
-            this.renderItem = ItemStack.EMPTY;
-            this.inventorySize = 0;
             this.slot = -1;
         }
 
+        rebuildItemContents();
         markDirtyAndNotify();
     }
 

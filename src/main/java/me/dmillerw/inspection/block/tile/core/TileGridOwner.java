@@ -15,7 +15,7 @@ import java.util.Set;
  */
 public class TileGridOwner extends TileCore implements ITickable {
 
-    public Set<BlockPos> cables = Sets.newHashSet();
+    public Set<BlockPos> trackedLocations = Sets.newHashSet();
     private boolean dirtyState = true;
 
     @Override
@@ -28,7 +28,7 @@ public class TileGridOwner extends TileCore implements ITickable {
             }
 
             if (world.getTotalWorldTime() % 2 == 0) {
-                for (BlockPos pos : cables) {
+                for (BlockPos pos : trackedLocations) {
                     IBlockState state = world.getBlockState(pos);
 
                     if (state.getBlock() != ModBlocks.cable) {
@@ -48,16 +48,11 @@ public class TileGridOwner extends TileCore implements ITickable {
 
     public void reanalayze() {
         if (!world.isRemote) {
+            trackedLocations.clear();
+
             PathFinder cableFinder = new PathFinder(world, pos);
-            cableFinder.find(true, (pos, face) -> {
-                return world.getBlockState(pos).getBlock() == ModBlocks.cable;
-            });
-
-            Set<BlockPos> newCables = Sets.newHashSet();
-            cableFinder.forEach(newCables::add);
-
-            cables.clear();
-            cables.addAll(newCables);
+            cableFinder.find(true, (pos, face) -> world.getBlockState(pos).getBlock() == ModBlocks.cable);
+            cableFinder.forEach(trackedLocations::add);
         }
     }
 }

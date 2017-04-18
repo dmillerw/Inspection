@@ -2,6 +2,7 @@ package me.dmillerw.inspection.block;
 
 import me.dmillerw.inspection.block.property.ConnectionType;
 import me.dmillerw.inspection.block.tile.TileCable;
+import me.dmillerw.inspection.util.PathFinder;
 import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
@@ -48,6 +49,13 @@ public class BlockCable extends Block implements ITileEntityProvider {
     @Override
     public void onBlockAdded(World worldIn, BlockPos pos, IBlockState state) {
         update(worldIn, state, pos);
+
+        PathFinder cableFinder = new PathFinder(worldIn, pos);
+        cableFinder.find(true, (p, face) -> {
+            return worldIn.getBlockState(p).getBlock() == ModBlocks.cable;
+        });
+
+        cableFinder.forEach((p) -> ((TileCable)worldIn.getTileEntity(p)).markForGridUpdate());
     }
 
     @Override

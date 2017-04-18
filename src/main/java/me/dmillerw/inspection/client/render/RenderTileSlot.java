@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 
 /**
@@ -15,7 +16,11 @@ public class RenderTileSlot extends TileEntitySpecialRenderer<TileSlot> {
 
     @Override
     public void renderTileEntityAt(TileSlot te, double x, double y, double z, float partialTicks, int destroyStage) {
-        if (te.renderItem != null) {
+        if (te.slot >= 0) {
+            final ItemStack renderItem = te.getItemStack(te.slot);
+            if (renderItem == null || renderItem.isEmpty())
+                return;
+
             GlStateManager.pushMatrix();
             GlStateManager.translate(x, y, z);
 
@@ -57,7 +62,7 @@ public class RenderTileSlot extends TileEntitySpecialRenderer<TileSlot> {
             GlStateManager.enableRescaleNormal();
             GlStateManager.popAttrib();
 
-            Minecraft.getMinecraft().getRenderItem().renderItemIntoGUI(te.renderItem, 0, 0);
+            Minecraft.getMinecraft().getRenderItem().renderItemIntoGUI(renderItem, 0, 0);
 
             GlStateManager.disableBlend();
             GlStateManager.enableAlpha();

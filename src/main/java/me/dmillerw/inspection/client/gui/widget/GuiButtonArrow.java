@@ -77,7 +77,7 @@ public class GuiButtonArrow extends GuiButtonExt {
                     drawY = centerY - halfH;
                     drawW = ARROW_WIDTH;
                     drawH = ARROW_HEIGHT;
-                    drawU = 22 + (hovered ? 11 : 0);
+                    drawU = 22/* + (hovered ? 11 : 0)*/;
                     drawV = 0;
                     break;
                 }
@@ -87,7 +87,7 @@ public class GuiButtonArrow extends GuiButtonExt {
                     drawY = centerY - halfH;
                     drawW = ARROW_WIDTH;
                     drawH = ARROW_HEIGHT;
-                    drawU = (hovered ? 11 : 0);
+                    drawU = /*(hovered ? 11 : 0)*/0;
                     drawV = 0;
                     break;
                 }

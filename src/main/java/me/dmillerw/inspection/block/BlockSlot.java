@@ -71,6 +71,16 @@ public class BlockSlot extends Block implements ITileEntityProvider {
 
     @Override
     public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
+        if (playerIn.isSneaking()) {
+            if (!worldIn.isRemote) {
+                TileSlot tile = (TileSlot) worldIn.getTileEntity(pos);
+                if (tile != null) {
+                    tile.reanalayze();
+                }
+            }
+
+            return true;
+        }
         GuiHandler.Gui.SLOT.openGui(playerIn, pos);
         return true;
     }
